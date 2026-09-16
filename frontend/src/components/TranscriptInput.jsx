@@ -7,17 +7,28 @@ export default function TranscriptInput({ onExtracted }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [demoNotice, setDemoNotice] = useState(null);
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem("meeting_ai_openai_key") || "");
+  const [apiKey, setApiKey] = useState(() => {
+    try {
+      return sessionStorage.getItem("meeting_ai_openai_key") || "";
+    } catch {
+      return "";
+    }
+  });
   const [showKeyInput, setShowKeyInput] = useState(false);
 
   const handleApiKeyChange = (val) => {
     setApiKey(val);
-    if (val.trim()) {
-      localStorage.setItem("meeting_ai_openai_key", val.trim());
-    } else {
-      localStorage.removeItem("meeting_ai_openai_key");
+    try {
+      if (val.trim()) {
+        sessionStorage.setItem("meeting_ai_openai_key", val.trim());
+      } else {
+        sessionStorage.removeItem("meeting_ai_openai_key");
+      }
+    } catch (err) {
+      console.warn("sessionStorage unavailable:", err);
     }
   };
+
 
   const handleFile = async (e) => {
     const file = e.target.files[0];
@@ -102,7 +113,7 @@ export default function TranscriptInput({ onExtracted }) {
             <div className="flex items-center gap-2">
               <input
                 type="password"
-                placeholder="sk-proj-... (optional, saved only in browser)"
+                placeholder="sk-proj-... (optional, clears when tab is closed)"
                 value={apiKey}
                 onChange={(e) => handleApiKeyChange(e.target.value)}
                 className="flex-1 bg-base-surface-2 border border-base-border rounded px-2.5 py-1.5 text-xs placeholder:text-ink-faint focus:outline-none focus:ring-1 focus:ring-brand font-mono"
