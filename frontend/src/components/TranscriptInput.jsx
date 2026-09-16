@@ -6,6 +6,18 @@ export default function TranscriptInput({ onExtracted }) {
   const [transcript, setTranscript] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [demoNotice, setDemoNotice] = useState(null);
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem("meeting_ai_openai_key") || "");
+  const [showKeyInput, setShowKeyInput] = useState(false);
+
+  const handleApiKeyChange = (val) => {
+    setApiKey(val);
+    if (val.trim()) {
+      localStorage.setItem("meeting_ai_openai_key", val.trim());
+    } else {
+      localStorage.removeItem("meeting_ai_openai_key");
+    }
+  };
 
   const handleFile = async (e) => {
     const file = e.target.files[0];
@@ -20,9 +32,13 @@ export default function TranscriptInput({ onExtracted }) {
     if (!transcript.trim()) return;
     setLoading(true);
     setError(null);
+    setDemoNotice(null);
     try {
-      const { data } = await createMeeting({ title, transcript });
+      const { data } = await createMeeting({ title, transcript }, apiKey);
       onExtracted(data);
+      if (data.isDemoMode) {
+        setDemoNotice("Extracted using Demo Heuristic Mode (no OpenAI API key configured). Add your OpenAI key below for full GPT-4o extraction.");
+      }
       setTranscript("");
       setTitle("");
     } catch (err) {
@@ -38,7 +54,7 @@ export default function TranscriptInput({ onExtracted }) {
       } else if (typeof data?.message === "string") {
         msg = data.message;
       } else if (err.response?.status === 404) {
-        msg = "Backend API not reachable (404). If deployed on Vercel, make sure the backend server URL is configured.";
+        msg = "Backend API not reachable (404). If deployed on Vercel, make sure the backend serverless function is configured.";
       } else if (typeof err.message === "string") {
         msg = err.message;
       }
@@ -68,6 +84,46 @@ export default function TranscriptInput({ onExtracted }) {
         rows={12}
         className="bg-base-surface-2 border border-base-border rounded-lg px-3 py-2.5 text-sm leading-relaxed placeholder:text-ink-faint focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-colors resize-y font-mono"
       />
+
+      {/* API Key Toggle and Input */}
+      <div className="border-t border-base-border/60 pt-2 text-xs">
+        <button
+          type="button"
+          onClick={() => setShowKeyInput(!showKeyInput)}
+          className="text-ink-muted hover:text-brand flex items-center gap-1.5 transition-colors"
+        >
+          <span>🔑</span>
+          <span>{showKeyInput ? "Hide OpenAI API Key settings" : "Use your own OpenAI API key (optional)"}</span>
+          {apiKey && <span className="text-signal-low text-[11px] font-mono">(Key saved)</span>}
+        </button>
+
+        {showKeyInput && (
+          <div className="mt-2 space-y-1 bg-base-surface-2/60 p-2.5 rounded-lg border border-base-border/50">
+            <div className="flex items-center gap-2">
+              <input
+                type="password"
+                placeholder="sk-proj-... (optional, saved only in browser)"
+                value={apiKey}
+                onChange={(e) => handleApiKeyChange(e.target.value)}
+                className="flex-1 bg-base-surface-2 border border-base-border rounded px-2.5 py-1.5 text-xs placeholder:text-ink-faint focus:outline-none focus:ring-1 focus:ring-brand font-mono"
+              />
+              {apiKey && (
+                <button
+                  type="button"
+                  onClick={() => handleApiKeyChange("")}
+                  className="text-xs text-ink-muted hover:text-signal-high px-1"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <p className="text-[11px] text-ink-faint leading-tight">
+              Without a key, the app runs in free <strong>Demo Mode</strong>.
+            </p>
+          </div>
+        )}
+      </div>
+
       <div className="flex items-center justify-between">
         <label className="text-xs text-ink-muted hover:text-brand cursor-pointer underline decoration-dotted underline-offset-4 transition-colors">
           Upload .txt file
@@ -81,6 +137,14 @@ export default function TranscriptInput({ onExtracted }) {
           {loading ? "Extracting tasks…" : "Extract Action Items"}
         </button>
       </div>
+
+      {demoNotice && (
+        <div className="p-3 bg-brand/10 border border-brand/30 rounded-lg flex items-start gap-2">
+          <span className="text-brand text-sm leading-none mt-0.5">⚡</span>
+          <p className="text-brand text-xs leading-relaxed">{demoNotice}</p>
+        </div>
+      )}
+
       {error && (
         <div className="p-3 bg-signal-high/10 border border-signal-high/30 rounded-lg flex items-start gap-2">
           <span className="text-signal-high text-sm leading-none mt-0.5">⚠️</span>
@@ -90,4 +154,5 @@ export default function TranscriptInput({ onExtracted }) {
     </form>
   );
 }
+
 

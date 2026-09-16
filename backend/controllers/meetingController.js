@@ -95,12 +95,15 @@ export const createMeeting = async (req, res) => {
       status: "processing",
     });
 
+    const userApiKey = req.headers["x-openai-key"] || req.body.openaiApiKey;
+
     try {
-      const rawExtractedTasks = await extractTasksFromTranscript({
+      const { tasks: rawExtractedTasks, isDemoMode } = await extractTasksFromTranscript({
         transcript,
         datesHint,
         participantsHint,
         meetingDate: meeting.meetingDate.toISOString().split("T")[0],
+        userApiKey,
       });
 
       // Step 3 Validation: Anti-hallucination check, confidence calibration, dedup
@@ -119,7 +122,8 @@ export const createMeeting = async (req, res) => {
       meeting.status = "completed";
       await meeting.save();
 
-      return res.status(201).json({ meeting, tasks: savedTasks });
+      return res.status(201).json({ meeting, tasks: savedTasks, isDemoMode });
+
     } catch (extractionErr) {
       meeting.status = "failed";
       await meeting.save();

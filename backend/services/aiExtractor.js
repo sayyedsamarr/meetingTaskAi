@@ -56,18 +56,109 @@ async function extractWithOpenAI({ apiKey, userPrompt }) {
   return cleanAndParseJSON(rawText);
 }
 
+// Heuristic rule-based extractor for Demo Mode when no OpenAI key is configured
+function extractTasksHeuristic({ transcript, datesHint, participantsHint }) {
+  const sentences = transcript
+    .split(/(?<=[.!?\n])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 10);
+
+  const actionKeywords = [
+    "will", "need to", "needs to", "must", "action item", "todo",
+    "should", "responsible for", "follow up", "send", "prepare",
+    "review", "complete", "schedule", "update", "create", "fix",
+    "deploy", "finalize"
+  ];
+
+  const tasks = [];
+  const lowerParticipants = participantsHint.map((p) => p.toLowerCase());
+
+  for (const sentence of sentences) {
+    const lowerSentence = sentence.toLowerCase();
+    const hasActionWord = actionKeywords.some((kw) => lowerSentence.includes(kw));
+
+    if (hasActionWord) {
+      // Find candidate owner from participants
+      let owner = "Unassigned";
+      for (let i = 0; i < participantsHint.length; i++) {
+        if (lowerSentence.includes(lowerParticipants[i])) {
+          owner = participantsHint[i];
+          break;
+        }
+      }
+
+      // Check speaker attribution like "Alice: I will fix..."
+      const speakerMatch = sentence.match(/^([A-Z][a-zA-Z0-9_ -]{1,20}):/);
+      if (speakerMatch && owner === "Unassigned") {
+        owner = speakerMatch[1];
+      }
+
+      // Find candidate deadline from datesHint
+      let deadline = null;
+      for (const d of datesHint) {
+        if (lowerSentence.includes(d.toLowerCase())) {
+          deadline = d;
+          break;
+        }
+      }
+
+      // Determine priority
+      let priority = "Medium";
+      if (/urgent|asap|today|critical|immediately/i.test(sentence)) {
+        priority = "High";
+      } else if (/eventually|when possible|later|someday|low priority/i.test(sentence)) {
+        priority = "Low";
+      }
+
+      // Clean action item text
+      let actionItem = sentence.replace(/^[A-Z][a-zA-Z0-9_ -]{1,20}:\s*/, "").trim();
+      if (actionItem.length > 120) {
+        actionItem = actionItem.slice(0, 117) + "...";
+      }
+
+      tasks.push({
+        actionItem,
+        owner,
+        deadline,
+        deadlineISO: null,
+        priority,
+        context: sentence,
+        confidence: owner !== "Unassigned" ? 0.8 : 0.65,
+      });
+    }
+  }
+
+  // If no specific action sentences matched, generate at least one fallback from first substantive sentence
+  if (tasks.length === 0 && sentences.length > 0) {
+    tasks.push({
+      actionItem: `Review and follow up on: "${sentences[0].slice(0, 80)}..."`,
+      owner: participantsHint[0] || "Unassigned",
+      deadline: datesHint[0] || null,
+      deadlineISO: null,
+      priority: "Medium",
+      context: sentences[0],
+      confidence: 0.6,
+    });
+  }
+
+  return tasks;
+}
+
 export async function extractTasksFromTranscript({
   transcript,
   datesHint,
   participantsHint,
   meetingDate,
+  userApiKey,
 }) {
-  const openaiKey = process.env.OPENAI_API_KEY?.trim();
+  const openaiKey = userApiKey?.trim() || process.env.OPENAI_API_KEY?.trim();
 
+  // If no OpenAI key is configured, seamlessly run heuristic Demo Mode
   if (!openaiKey) {
-    throw new Error(
-      "OpenAI API key is missing. Please configure OPENAI_API_KEY in your environment to extract action items."
-    );
+    return {
+      tasks: extractTasksHeuristic({ transcript, datesHint, participantsHint }),
+      isDemoMode: true,
+    };
   }
 
   const userPrompt = `Meeting date: ${meetingDate}
@@ -85,8 +176,10 @@ Transcript:
 ${transcript}
 """`;
 
-  return await extractWithOpenAI({ apiKey: openaiKey, userPrompt });
+  const tasks = await extractWithOpenAI({ apiKey: openaiKey, userPrompt });
+  return { tasks, isDemoMode: false };
 }
+
 
 
 
