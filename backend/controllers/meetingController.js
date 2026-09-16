@@ -125,7 +125,7 @@ export const createMeeting = async (req, res) => {
       await meeting.save();
       console.error("Extraction failed:", extractionErr);
       return res.status(502).json({
-        error: "Meeting saved but task extraction failed",
+        error: extractionErr.message || "Meeting saved but task extraction failed",
         details: extractionErr.message,
         meeting,
       });

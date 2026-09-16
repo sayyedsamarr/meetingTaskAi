@@ -26,7 +26,24 @@ export default function TranscriptInput({ onExtracted }) {
       setTranscript("");
       setTitle("");
     } catch (err) {
-      setError(err.response?.data?.error || "Something went wrong");
+      const data = err.response?.data;
+      let msg = "Something went wrong while processing the transcript.";
+
+      if (typeof data?.error === "string") {
+        msg = data.error;
+      } else if (typeof data?.details === "string") {
+        msg = data.details;
+      } else if (typeof data?.error?.message === "string") {
+        msg = data.error.message;
+      } else if (typeof data?.message === "string") {
+        msg = data.message;
+      } else if (err.response?.status === 404) {
+        msg = "Backend API not reachable (404). If deployed on Vercel, make sure the backend server URL is configured.";
+      } else if (typeof err.message === "string") {
+        msg = err.message;
+      }
+
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -65,8 +82,12 @@ export default function TranscriptInput({ onExtracted }) {
         </button>
       </div>
       {error && (
-        <p className="text-signal-high text-xs font-mono">{error}</p>
+        <div className="p-3 bg-signal-high/10 border border-signal-high/30 rounded-lg flex items-start gap-2">
+          <span className="text-signal-high text-sm leading-none mt-0.5">⚠️</span>
+          <p className="text-signal-high text-xs font-mono leading-relaxed">{error}</p>
+        </div>
       )}
     </form>
   );
 }
+

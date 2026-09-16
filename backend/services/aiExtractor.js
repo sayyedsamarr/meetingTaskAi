@@ -66,7 +66,7 @@ export async function extractTasksFromTranscript({
 
   if (!openaiKey) {
     throw new Error(
-      "No OpenAI API key found. Please set OPENAI_API_KEY in backend/.env"
+      "OpenAI API key is missing. Please configure OPENAI_API_KEY in your environment to extract action items."
     );
   }
 
