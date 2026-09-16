@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-base-bg text-ink font-sans antialiased;
+  }
+}
+
+@layer utilities {
+  .confidence-track {
+    background: linear-gradient(
+      to right,
+      theme("colors.brand.DEFAULT") var(--confidence, 50%),
+      theme("colors.base.border") var(--confidence, 50%)
+    );
+  }
+}
